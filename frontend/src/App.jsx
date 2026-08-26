@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
 
-const API_URL = "http://127.0.0.1:8000";
-
+const API_URL = "http://192.168.0.102:8000";
 function App() {
   // ==============================
   // AUTH STATE
@@ -26,11 +25,13 @@ function App() {
   // ==============================
 
   const [receiverId, setReceiverId] = useState("");
+  const receiverIdRef = useRef("");
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
+  const [users, setUsers] = useState([]);
 
   const websocket = useRef(null);
-
+  const messagesEndRef = useRef(null);
   // ==============================
   // LOGIN
   // ==============================
@@ -61,25 +62,30 @@ function App() {
 
       const data = await response.json();
 
+      console.log("LOGIN RESPONSE:", data);
+
       if (!response.ok) {
         setLoginError(data.detail || "Login failed");
-
         return;
       }
 
-      // Save JWT token
+      console.log("LOGIN RESPONSE OK");
+
       localStorage.setItem("access_token", data.access_token);
 
-      // Save user information
       setUserId(String(data.user_id));
 
       setUsername(data.username);
 
-      setConnected(true);
-    } catch (error) {
-      console.error(error);
+      console.log("BEFORE CONNECTED");
 
-      setLoginError("Cannot connect to server");
+      setConnected(true);
+
+      console.log("AFTER CONNECTED");
+    } catch (error) {
+      console.error("LOGIN ERROR:", error);
+
+      setLoginError("Login error: " + error.message);
     }
   };
 
@@ -131,13 +137,35 @@ function App() {
   // ==============================
   // WEBSOCKET CONNECTION
   // ==============================
+  useEffect(() => {
+    if (!connected) {
+      return;
+    }
 
+    const loadUsers = async () => {
+      try {
+        const response = await fetch(`${API_URL}/users`);
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+
+        setUsers(data);
+      } catch (error) {
+        console.log("Could not load users", error);
+      }
+    };
+
+    loadUsers();
+  }, [connected]);
   useEffect(() => {
     if (!connected || !userId) {
       return;
     }
 
-    const ws = new WebSocket(`ws://127.0.0.1:8000/ws/${userId}`);
+    const ws = new WebSocket(`ws://192.168.0.102:8000/ws/${userId}`);
 
     websocket.current = ws;
 
@@ -155,40 +183,109 @@ function App() {
 
         console.log("Server:", data);
 
-        // Message from another user
-        if (
-          data.sender_id !== undefined &&
-          data.receiver_id !== undefined &&
-          data.message !== undefined
-        ) {
-          // Only show if this chat is currently open
-          if (String(data.sender_id) === String(receiverId)) {
+        // ==========================================
+        // PRESENCE
+        // ==========================================
+
+        if (data.type === "presence") {
+          const refreshUsers = async () => {
+            try {
+              const response = await fetch(`${API_URL}/users`);
+
+              if (!response.ok) {
+                return;
+              }
+
+              const data = await response.json();
+
+              setUsers(data);
+            } catch (error) {
+              console.log("Could not refresh users", error);
+            }
+          };
+
+          refreshUsers();
+
+          return;
+        }
+
+        if (data.type === "status") {
+          setMessages((oldMessages) => {
+            const messageExists = oldMessages.some(
+              (msg) => String(msg.id) === String(data.message_id),
+            );
+
+            if (!messageExists && data.status === "sent") {
+              return [
+                ...oldMessages,
+                {
+                  id: data.message_id,
+                  text: data.message || "",
+                  sender: "me",
+                  userId: userId,
+                  status: "sent",
+                },
+              ];
+            }
+
+            // Existing message ka status update karo
+            return oldMessages.map((msg) =>
+              String(msg.id) === String(data.message_id)
+                ? {
+                    ...msg,
+                    status: data.status,
+                  }
+                : msg,
+            );
+          });
+
+          return;
+        }
+
+        // ==========================================
+        // RECEIVED MESSAGE
+        // ==========================================
+
+        if (data.type === "message") {
+          if (String(data.sender_id) === String(receiverIdRef.current)) {
             setMessages((oldMessages) => [
               ...oldMessages,
+
               {
+                id: data.message_id,
+
                 text: data.message,
+
                 sender: "other",
+
                 userId: data.sender_id,
+
+                status: data.status || "delivered",
               },
             ]);
+
+            // Message immediately seen
+            // because this chat is open
+
+            if (
+              websocket.current &&
+              websocket.current.readyState === WebSocket.OPEN
+            ) {
+              websocket.current.send(
+                JSON.stringify({
+                  type: "seen",
+                  message_ids: [data.message_id],
+                }),
+              );
+            }
           }
 
           return;
         }
 
-        // Sent message confirmation
-        if (data.status === "sent") {
-          setMessages((oldMessages) => [
-            ...oldMessages,
-            {
-              text: data.message,
-              sender: "me",
-              userId: userId,
-            },
-          ]);
-
-          return;
-        }
+        // ==========================================
+        // ERROR
+        // ==========================================
 
         if (data.status === "error") {
           alert(data.message || "Message could not be sent");
@@ -221,7 +318,7 @@ function App() {
     }
 
     setReceiverId(String(id));
-
+    receiverIdRef.current = String(id);
     setMessages([]);
 
     // Load previous chat messages
@@ -235,14 +332,39 @@ function App() {
       const data = await response.json();
 
       const formattedMessages = data.map((msg) => ({
+        id: msg.id,
+
         text: msg.message,
 
         sender: String(msg.sender_id) === String(userId) ? "me" : "other",
 
         userId: msg.sender_id,
+
+        status: msg.status || "sent",
       }));
 
       setMessages(formattedMessages);
+      const unseenMessageIds = data
+        .filter(
+          (msg) =>
+            String(msg.sender_id) === String(id) &&
+            String(msg.receiver_id) === String(userId) &&
+            msg.status !== "seen",
+        )
+        .map((msg) => msg.id);
+
+      if (
+        unseenMessageIds.length > 0 &&
+        websocket.current &&
+        websocket.current.readyState === WebSocket.OPEN
+      ) {
+        websocket.current.send(
+          JSON.stringify({
+            type: "seen",
+            message_ids: unseenMessageIds,
+          }),
+        );
+      }
     } catch (error) {
       console.log("Could not load chat history", error);
     }
@@ -255,7 +377,6 @@ function App() {
   const sendMessage = () => {
     if (!receiverId) {
       alert("Please select a user");
-
       return;
     }
 
@@ -265,15 +386,15 @@ function App() {
 
     if (!websocket.current || websocket.current.readyState !== WebSocket.OPEN) {
       alert("Not connected to chat server");
-
       return;
     }
+
+    const messageText = message.trim();
 
     websocket.current.send(
       JSON.stringify({
         receiver_id: Number(receiverId),
-
-        message: message.trim(),
+        message: messageText,
       }),
     );
 
@@ -290,6 +411,11 @@ function App() {
     }
   };
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
+  }, [messages]);
   // ==============================
   // LOGOUT
   // ==============================
@@ -298,21 +424,13 @@ function App() {
     if (websocket.current) {
       websocket.current.close();
     }
-
     localStorage.removeItem("access_token");
-
     setConnected(false);
-
     setUserId("");
-
     setUsername("");
-
     setEmail("");
-
     setPassword("");
-
     setReceiverId("");
-
     setMessages([]);
   };
 
@@ -417,7 +535,7 @@ function App() {
 
   return (
     <div className="app">
-      <div className="chat-app">
+      <div className={`chat-app ${receiverId ? "chat-open" : "users-open"}`}>
         {/* LEFT SIDE */}
 
         <div className="users">
@@ -431,23 +549,22 @@ function App() {
             Logout
           </button>
 
-          <div
-            className={`user ${receiverId === "1" ? "selected" : ""}`}
-            onClick={() => selectUser(1)}>
-            User 1
-          </div>
+          {users.map((user) => (
+            <div
+              key={user.id}
+              className={`user ${
+                receiverId === String(user.id) ? "selected" : ""
+              }`}
+              onClick={() => selectUser(user.id)}>
+              <div>
+                {user.username} (User {user.id})
+              </div>
 
-          <div
-            className={`user ${receiverId === "2" ? "selected" : ""}`}
-            onClick={() => selectUser(2)}>
-            User 2
-          </div>
-
-          <div
-            className={`user ${receiverId === "3" ? "selected" : ""}`}
-            onClick={() => selectUser(3)}>
-            User 3
-          </div>
+              <div className={user.online ? "online" : "offline"}>
+                {user.online ? "🟢 Online" : "⚫ Offline"}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* RIGHT SIDE */}
@@ -461,14 +578,36 @@ function App() {
             </div>
           ) : (
             <>
-              <div className="chat-header">User {receiverId}</div>
+              <div className="chat-header">
+                <button
+                  className="back-button"
+                  onClick={() => {
+                    setReceiverId("");
+                    receiverIdRef.current = "";
+                    setMessages([]);
+                  }}>
+                  ←
+                </button>
+                User {receiverId}
+              </div>
 
               <div className="messages">
                 {messages.map((msg, index) => (
                   <div key={index} className={`message ${msg.sender}`}>
                     {msg.text}
+
+                    {msg.sender === "me" && (
+                      <span
+                        className={`message-status ${msg.status || "sent"}`}>
+                        {msg.status === "sent" && "✓"}
+                        {msg.status === "delivered" && "✓✓"}
+                        {msg.status === "seen" && "✓✓"}
+                      </span>
+                    )}
                   </div>
                 ))}
+                {/* uvicorn main:app --host 0.0.0.0 --port 8000 */}
+                <div ref={messagesEndRef} />
               </div>
 
               <div className="message-box">

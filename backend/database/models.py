@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from backend.database.connection import Base
 
@@ -20,3 +20,4 @@ class Message(Base):
     receiver_id = Column(Integer, nullable=False)
     message = Column(String(1000), nullable=False)
     created_at = Column(DateTime, server_default=func.now())
+    status = Column(String, default="sent")
