@@ -10,10 +10,19 @@ from fastapi.security import (
     OAuth2PasswordBearer,
     OAuth2PasswordRequestForm
 )
+from pathlib import Path
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from datetime import datetime, timedelta, timezone
 from jose import jwt
 import os
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
+
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+JWT_ALGORITHM = os.getenv("JWT_ALGORITHM")
+JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES"))
 
 app = FastAPI()
 
@@ -49,11 +58,6 @@ oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="login"
 )
 
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
-JWT_ALGORITHM = os.getenv("JWT_ALGORITHM")
-JWT_EXPIRE_MINUTES = int(
-    os.getenv("JWT_EXPIRE_MINUTES")
-)
 
 def hash_password(password: str):
     return pwd_context.hash(password)
@@ -125,12 +129,19 @@ def get_current_user(
 
     return user
 
+# @app.get("/")
+# def home():
+
+#     return {
+#         "message": "private chat backend is running"
+#     }
+
 @app.get("/")
 def home():
-
-    return {
-        "message": "private chat backend is running"
+    return{
+        "hello sunny"
     }
+
 
 @app.get("/db-test")
 def db_test():

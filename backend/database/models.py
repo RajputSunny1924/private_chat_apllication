@@ -20,4 +20,4 @@ class Message(Base):
     receiver_id = Column(Integer, nullable=False)
     message = Column(String(1000), nullable=False)
     created_at = Column(DateTime, server_default=func.now())
-    status = Column(String, default="sent")
+    status = Column(String(20))

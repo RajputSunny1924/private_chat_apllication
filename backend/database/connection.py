@@ -1,12 +1,12 @@
-
 import os
+
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+
 Base = declarative_base()
 
 load_dotenv()
-
 
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
@@ -19,8 +19,18 @@ DATABASE_URL = (
     f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 )
 
-engine = create_engine(DATABASE_URL)
+CA_FILE = os.path.abspath(
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "ca.pem")
+)
 
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={
+        "ssl": {
+            "ca": CA_FILE
+        }
+    }
+)
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
@@ -29,7 +39,6 @@ SessionLocal = sessionmaker(
 
 def get_db():
     db = SessionLocal()
-
     try:
         yield db
     finally:

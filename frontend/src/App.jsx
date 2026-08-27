@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
 
+// const API_URL = "http://127.0.0.1:8000";
 const API_URL = "http://192.168.0.102:8000";
+
 function App() {
   // ==============================
   // AUTH STATE
@@ -183,10 +185,6 @@ function App() {
 
         console.log("Server:", data);
 
-        // ==========================================
-        // PRESENCE
-        // ==========================================
-
         if (data.type === "presence") {
           const refreshUsers = async () => {
             try {
@@ -215,12 +213,13 @@ function App() {
               (msg) => String(msg.id) === String(data.message_id),
             );
 
+            // Message abhi list me nahi hai
             if (!messageExists && data.status === "sent") {
               return [
                 ...oldMessages,
                 {
                   id: data.message_id,
-                  text: data.message || "",
+                  text: data.message,
                   sender: "me",
                   userId: userId,
                   status: "sent",
@@ -247,37 +246,51 @@ function App() {
         // ==========================================
 
         if (data.type === "message") {
-          if (String(data.sender_id) === String(receiverIdRef.current)) {
-            setMessages((oldMessages) => [
-              ...oldMessages,
+          console.log("MESSAGE RECEIVED");
+          console.log("Sender ID:", data.sender_id);
+          console.log("Current Receiver ID:", receiverIdRef.current);
+          const senderId = String(data.sender_id);
 
+          setMessages((oldMessages) => {
+            // Duplicate message already exists?
+            const exists = oldMessages.some(
+              (msg) => String(msg.id) === String(data.message_id),
+            );
+
+            if (exists) {
+              return oldMessages;
+            }
+
+            // Only show message in currently opened chat
+            if (senderId !== String(receiverIdRef.current)) {
+              return oldMessages;
+            }
+
+            return [
+              ...oldMessages,
               {
                 id: data.message_id,
-
                 text: data.message,
-
                 sender: "other",
-
                 userId: data.sender_id,
-
                 status: data.status || "delivered",
               },
-            ]);
+            ];
+          });
 
-            // Message immediately seen
-            // because this chat is open
-
-            if (
-              websocket.current &&
-              websocket.current.readyState === WebSocket.OPEN
-            ) {
-              websocket.current.send(
-                JSON.stringify({
-                  type: "seen",
-                  message_ids: [data.message_id],
-                }),
-              );
-            }
+          // If this user's chat is currently open,
+          // immediately mark the message as seen.
+          if (
+            senderId === String(receiverIdRef.current) &&
+            websocket.current &&
+            websocket.current.readyState === WebSocket.OPEN
+          ) {
+            websocket.current.send(
+              JSON.stringify({
+                type: "seen",
+                message_ids: [data.message_id],
+              }),
+            );
           }
 
           return;
@@ -606,7 +619,7 @@ function App() {
                     )}
                   </div>
                 ))}
-                {/* uvicorn main:app --host 0.0.0.0 --port 8000 */}
+
                 <div ref={messagesEndRef} />
               </div>
 
