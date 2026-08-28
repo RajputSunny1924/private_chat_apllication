@@ -5,6 +5,7 @@ from backend.database.connection import SessionLocal
 from backend.database.models import Message
 from backend.websockets.manager import manager
 
+
 router = APIRouter()
 
 
@@ -25,6 +26,10 @@ async def websocket_chat(websocket: WebSocket, user_id: int):
 
             data = await websocket.receive_json()
 
+            # =========================
+            # SEEN MESSAGE
+            # =========================
+
             if data.get("type") == "seen":
 
                 message_ids = data.get("message_ids", [])
@@ -36,10 +41,14 @@ async def websocket_chat(websocket: WebSocket, user_id: int):
 
                     for message_id in message_ids:
 
-                        msg = db.query(Message).filter(
-                            Message.id == message_id,
-                            Message.receiver_id == user_id
-                        ).first()
+                        msg = (
+                            db.query(Message)
+                            .filter(
+                                Message.id == message_id,
+                                Message.receiver_id == user_id
+                            )
+                            .first()
+                        )
 
                         if msg and msg.status != "seen":
 
@@ -52,8 +61,10 @@ async def websocket_chat(websocket: WebSocket, user_id: int):
                     db.commit()
 
                 finally:
+
                     db.close()
 
+                # Notify sender about seen status
                 for message_id, sender_id in seen_messages:
 
                     await manager.send_to_user(
@@ -66,6 +77,10 @@ async def websocket_chat(websocket: WebSocket, user_id: int):
                     )
 
                 continue
+
+            # =========================
+            # NORMAL MESSAGE
+            # =========================
 
             receiver_id = data["receiver_id"]
             message_text = data["message"]
@@ -88,7 +103,12 @@ async def websocket_chat(websocket: WebSocket, user_id: int):
                 message_id = new_message.id
 
             finally:
+
                 db.close()
+
+            # =========================
+            # SENT STATUS
+            # =========================
 
             await websocket.send_json({
                 "type": "status",
@@ -100,7 +120,14 @@ async def websocket_chat(websocket: WebSocket, user_id: int):
 
             print("SENDER:", user_id)
             print("RECEIVER:", receiver_id)
-            print("RECEIVER ONLINE:", manager.is_online(receiver_id))
+            print(
+                "RECEIVER ONLINE:",
+                manager.is_online(receiver_id)
+            )
+
+            # =========================
+            # DELIVERED STATUS
+            # =========================
 
             if manager.is_online(receiver_id):
 
@@ -108,19 +135,29 @@ async def websocket_chat(websocket: WebSocket, user_id: int):
 
                 try:
 
-                    msg = db.query(Message).filter(
-                        Message.id == message_id
-                    ).first()
+                    msg = (
+                        db.query(Message)
+                        .filter(
+                            Message.id == message_id
+                        )
+                        .first()
+                    )
 
                     if msg:
+
                         msg.status = "delivered"
                         db.commit()
 
                 finally:
+
                     db.close()
 
-                print("SENDING MESSAGE TO USER:", receiver_id)
+                print(
+                    "SENDING MESSAGE TO USER:",
+                    receiver_id
+                )
 
+                # Send message to receiver
                 await manager.send_to_user(
                     receiver_id,
                     {
@@ -133,6 +170,7 @@ async def websocket_chat(websocket: WebSocket, user_id: int):
                     }
                 )
 
+                # Tell sender message was delivered
                 await websocket.send_json({
                     "type": "status",
                     "status": "delivered",
@@ -141,7 +179,11 @@ async def websocket_chat(websocket: WebSocket, user_id: int):
 
     except WebSocketDisconnect:
 
-        manager.disconnect(user_id, websocket)
+        manager.disconnect(
+            user_id,
+            websocket
+        )
+
         await manager.broadcast({
             "type": "presence",
             "user_id": user_id,
