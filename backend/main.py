@@ -129,17 +129,10 @@ def get_current_user(
 
     return user
 
-# @app.get("/")
-# def home():
-
-#     return {
-#         "message": "private chat backend is running"
-#     }
-
 @app.get("/")
 def home():
-    return{
-        "hello sunny"
+    return {
+        "message": "Private Chat Backend is running"
     }
 
 
