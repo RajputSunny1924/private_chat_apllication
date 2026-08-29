@@ -22,10 +22,12 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
 DB_CA = os.getenv("DB_CA")
 
-
-# CA certificate path
-CA_PATH = BASE_DIR / "backend" / DB_CA
-
+if DB_CA:
+    CA_PATH = Path(DB_CA)
+elif Path("/etc/secrets/ca.pem").exists():
+    CA_PATH = Path("/etc/secrets/ca.pem")
+else:
+    CA_PATH = BASE_DIR / "backend" / "ca.pem"
 
 # MySQL connection URL
 DATABASE_URL = (
