@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
 
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = "https://private-chat-apllication-1.onrender.com";
 
 function App() {
   // ==============================
@@ -166,7 +166,9 @@ function App() {
       return;
     }
 
-    const ws = new WebSocket(`ws://127.0.0.1:8000/ws/${userId}`);
+    const ws = new WebSocket(
+      `wss://private-chat-apllication-1.onrender.com/ws/${userId}`,
+    );
 
     websocket.current = ws;
 
