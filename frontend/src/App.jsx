@@ -20,6 +20,7 @@ function App() {
 
   const [userId, setUserId] = useState("");
   const [connected, setConnected] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
   // ==============================
   // CHAT STATE
@@ -30,9 +31,17 @@ function App() {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [users, setUsers] = useState([]);
+  const [unreadCounts, setUnreadCounts] = useState({});
 
   const websocket = useRef(null);
   const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
+  }, [messages]);
+
   // ==============================
   // LOGIN
   // ==============================
@@ -135,6 +144,46 @@ function App() {
     }
   };
 
+  // ==============================
+  // RESTORE LOGIN SESSION
+  // ==============================
+  useEffect(() => {
+    const restoreSession = async () => {
+      const token = localStorage.getItem("access_token");
+
+      if (!token) {
+        setCheckingAuth(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_URL}/me`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          localStorage.removeItem("access_token");
+          setCheckingAuth(false);
+          return;
+        }
+
+        const data = await response.json();
+
+        setUserId(String(data.id));
+        setUsername(data.username);
+        setEmail(data.email);
+        setConnected(true);
+      } catch (error) {
+        console.log("Could not restore login", error);
+      } finally {
+        setCheckingAuth(false);
+      }
+    };
+
+    restoreSession();
+  }, []);
   // ==============================
   // WEBSOCKET CONNECTION
   // ==============================
@@ -252,6 +301,30 @@ function App() {
           console.log("Current Receiver ID:", receiverIdRef.current);
           const senderId = String(data.sender_id);
 
+          // ==============================
+          // UNREAD MESSAGE
+          // ==============================
+
+          if (senderId !== String(receiverIdRef.current)) {
+            setUnreadCounts((oldCounts) => ({
+              ...oldCounts,
+              [senderId]: (oldCounts[senderId] || 0) + 1,
+            }));
+
+            const sender = users.find((user) => String(user.id) === senderId);
+
+            const senderName = sender ? sender.username : `User ${senderId}`;
+
+            if (
+              "Notification" in window &&
+              Notification.permission === "granted"
+            ) {
+              new Notification(senderName, {
+                body: data.message,
+              });
+            }
+          }
+
           setMessages((oldMessages) => {
             // Duplicate message already exists?
             const exists = oldMessages.some(
@@ -333,6 +406,12 @@ function App() {
 
     setReceiverId(String(id));
     receiverIdRef.current = String(id);
+
+    setUnreadCounts((oldCounts) => ({
+      ...oldCounts,
+      [String(id)]: 0,
+    }));
+
     setMessages([]);
 
     // Load previous chat messages
@@ -426,10 +505,10 @@ function App() {
   };
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: "smooth",
-    });
-  }, [messages]);
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
   // ==============================
   // LOGOUT
   // ==============================
@@ -451,6 +530,10 @@ function App() {
   // ==============================
   // LOGIN SCREEN
   // ==============================
+
+  if (checkingAuth) {
+    return <div className="app">Loading...</div>;
+  }
 
   if (!connected) {
     return (
@@ -571,7 +654,12 @@ function App() {
               }`}
               onClick={() => selectUser(user.id)}>
               <div>
-                {user.username} (User {user.id})
+                {user.username} (User {user.id}){" "}
+                {unreadCounts[String(user.id)] > 0 && (
+                  <span className="unread-badge">
+                    {unreadCounts[String(user.id)]}
+                  </span>
+                )}
               </div>
 
               <div className={user.online ? "online" : "offline"}>

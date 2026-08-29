@@ -346,3 +346,18 @@ body {
     cursor: pointer;
   }
 }
+
+.unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  margin-left: 8px;
+  border-radius: 10px;
+  background: #25d366;
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+}
