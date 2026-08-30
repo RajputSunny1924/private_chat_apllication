@@ -9,6 +9,8 @@ class User(Base):
     username = Column(String(50), unique=True, nullable=False)
     email = Column(String(100), unique=True, nullable=False)
     password = Column(String(255), nullable=False)
+    profile_photo = Column(String(500), nullable=True)
+
     
     is_verified = Column(Boolean, default=False, nullable=False)
     verification_otp = Column(String(6), nullable=True)

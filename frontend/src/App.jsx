@@ -22,9 +22,11 @@ function App() {
   const [connected, setConnected] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
+
   const [darkMode, setDarkMode] = useState(
     localStorage.getItem("darkMode") === "true",
   );
+  const [profilePhoto, setProfilePhoto] = useState(null);
 
   // ==============================
   // CHAT STATE
@@ -521,6 +523,40 @@ function App() {
   // LOGOUT
   // ==============================
 
+  const handleProfilePhoto = async (event) => {
+    const file = event.target.files[0];
+
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const token = localStorage.getItem("access_token");
+
+      const response = await fetch(`${API_URL}/profile/photo`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.detail || "Profile photo upload failed");
+        return;
+      }
+      setProfilePhoto(data.profile_photo);
+
+      alert("Profile photo updated successfully!");
+    } catch (error) {
+      console.error(error);
+      alert("Cannot connect to server");
+    }
+  };
+
   const logout = () => {
     if (websocket.current) {
       websocket.current.close();
@@ -644,36 +680,36 @@ function App() {
         {/* LEFT SIDE */}
 
         <div className="users">
-          <h2>Private Chat</h2>
+          <div className="users-header">
+            <h1>Private Chat</h1>
 
-          <p className="my-user">{username}</p>
+            <div className="menu-container">
+              <button
+                className="menu-button"
+                onClick={() => setShowMenu(!showMenu)}>
+                ⋮
+              </button>
 
-          <div className="menu-container">
-            <button
-              className="menu-button"
-              onClick={() => setShowMenu(!showMenu)}>
-              ⋮
-            </button>
+              {showMenu && (
+                <div className="dropdown-menu">
+                  <label className="profile-photo-button">
+                    🖼️ Profile Photo
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleProfilePhoto}
+                      hidden
+                    />
+                  </label>
 
-            {showMenu && (
-              <div className="menu-dropdown">
-                <button
-                  onClick={() => {
-                    setDarkMode(!darkMode);
-                    setShowMenu(false);
-                  }}>
-                  {darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
-                </button>
+                  <button onClick={() => setDarkMode(!darkMode)}>
+                    {darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
+                  </button>
 
-                <button
-                  onClick={() => {
-                    setShowMenu(false);
-                    logout();
-                  }}>
-                  🚪 Logout
-                </button>
-              </div>
-            )}
+                  <button onClick={logout}>🚪 Logout</button>
+                </div>
+              )}
+            </div>
           </div>
 
           {users.map((user) => (
@@ -683,6 +719,14 @@ function App() {
                 receiverId === String(user.id) ? "selected" : ""
               }`}
               onClick={() => selectUser(user.id)}>
+              <div className="user-avatar">
+                {user.profile_photo ? (
+                  <img src={`${API_URL}${user.profile_photo}`} alt="" />
+                ) : (
+                  "👤"
+                )}
+              </div>
+
               <div>
                 {user.username}
                 {unreadCounts[String(user.id)] > 0 && (

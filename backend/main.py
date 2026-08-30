@@ -18,6 +18,9 @@ from jose import jwt
 import os
 import smtplib
 import random
+import uuid
+from fastapi import UploadFile, File
+from fastapi.staticfiles import StaticFiles
 from email.message import EmailMessage
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,6 +32,7 @@ JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES"))
 
 app = FastAPI()
 
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -195,13 +199,14 @@ def get_users(
     users = db.query(models.User).all()
 
     return [
-        {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "created_at": user.created_at,
-            "online": manager.is_online(user.id)
-        }
+    {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "profile_photo": user.profile_photo,
+        "created_at": user.created_at,
+        "online": manager.is_online(user.id)
+    }
 
         for user in users
     ]
@@ -229,6 +234,7 @@ def get_user_by_id(
         "id": user.id,
         "username": user.username,
         "email": user.email,
+        "profile_photo": user.profile_photo,
         "created_at": user.created_at,
         "online": manager.is_online(user.id)
     }
@@ -497,4 +503,39 @@ def get_my_profile(
         "id": current_user.id,
         "username": current_user.username,
         "email": current_user.email
+    }
+
+@app.post("/profile/photo")
+async def upload_profile_photo(
+    file: UploadFile = File(...),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    allowed_types = ["image/jpeg", "image/png", "image/webp"]
+
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail="Only JPG, PNG and WEBP images are allowed"
+        )
+
+    extension = file.filename.split(".")[-1]
+    filename = f"{uuid.uuid4()}.{extension}"
+
+    upload_dir = Path("uploads")
+    upload_dir.mkdir(exist_ok=True)
+
+    file_path = upload_dir / filename
+
+    with open(file_path, "wb") as buffer:
+        buffer.write(await file.read())
+
+    current_user.profile_photo = f"/uploads/{filename}"
+
+    db.commit()
+    db.refresh(current_user)
+
+    return {
+        "message": "Profile photo updated",
+        "profile_photo": current_user.profile_photo
     }

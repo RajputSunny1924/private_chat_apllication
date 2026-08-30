@@ -225,10 +225,6 @@ body {
    MOBILE WHATSAPP STYLE
    ========================================= */
 
-.back-button {
-  display: none;
-}
-
 @media (max-width: 768px) {
   .chat-app {
     width: 100%;
@@ -257,6 +253,36 @@ body {
     top: 0;
     z-index: 1;
     background: #fff;
+  }
+  .users,
+  .chat {
+    width: 100%;
+    height: 100%;
+  }
+
+  .chat-app.users-open .users {
+    display: block;
+  }
+
+  .chat-app.users-open .chat {
+    display: none;
+  }
+
+  .chat-app.chat-open .users {
+    display: none;
+  }
+
+  .chat-app.chat-open .chat {
+    display: flex;
+  }
+
+  .back-button {
+    display: inline-block;
+    border: none;
+    background: transparent;
+    font-size: 25px;
+    margin-right: 10px;
+    cursor: pointer;
   }
 
   /* When chat is open */
@@ -307,46 +333,6 @@ body {
   display: none;
 }
 
-@media (max-width: 768px) {
-  .chat-app {
-    position: relative;
-    width: 100%;
-    height: 100vh;
-    overflow: hidden;
-  }
-
-  .users,
-  .chat {
-    width: 100%;
-    height: 100%;
-  }
-
-  .chat-app.users-open .users {
-    display: block;
-  }
-
-  .chat-app.users-open .chat {
-    display: none;
-  }
-
-  .chat-app.chat-open .users {
-    display: none;
-  }
-
-  .chat-app.chat-open .chat {
-    display: flex;
-  }
-
-  .back-button {
-    display: inline-block;
-    border: none;
-    background: transparent;
-    font-size: 25px;
-    margin-right: 10px;
-    cursor: pointer;
-  }
-}
-
 .unread-badge {
   display: inline-flex;
   align-items: center;
@@ -366,51 +352,10 @@ body {
   position: relative;
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 10px;
 }
 
-.menu-button {
-  border: none;
-  background: transparent;
-  font-size: 28px;
-  cursor: pointer;
-  padding: 4px 10px;
-}
-
-.menu-dropdown {
-  position: absolute;
-  top: 42px;
-  right: 0;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 10px;
-  min-width: 150px;
-  padding: 6px;
-  z-index: 1000;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.menu-dropdown button {
-  width: 100%;
-  border: none;
-  background: transparent;
-  padding: 10px;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 6px;
-}
-
-.menu-dropdown button:hover {
-  background: #f2f2f2;
-}
 .dark-mode {
   background: #121212;
-  color: #ffffff;
-}
-
-.dark-mode .users,
-.dark-mode .chat {
-  background: #181818;
   color: #ffffff;
 }
 
@@ -418,15 +363,243 @@ body {
   color: #ffffff;
 }
 
-.dark-mode .menu-dropdown {
-  background: #242424;
-  border-color: #444;
+/* ============================= */
+/* CHAT HEADER */
+/* ============================= */
+
+.chat-header {
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 22px;
+  background: #ffffff;
+  border-bottom: 1px solid #ddd;
+  box-sizing: border-box;
 }
 
-.dark-mode .menu-dropdown button {
-  color: #ffffff;
+.chat-header h1 {
+  margin: 0;
+  font-size: 24px;
 }
 
-.dark-mode .menu-dropdown button:hover {
-  background: #333;
+/* ============================= */
+/* THREE DOT MENU */
+/* ============================= */
+
+.menu-button {
+  border: none;
+  background: transparent;
+  font-size: 30px;
+  cursor: pointer;
+  padding: 4px 10px;
+  line-height: 1;
+}
+
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: 45px;
+  width: 190px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  z-index: 1000;
+}
+
+.dropdown-menu button {
+  width: 100%;
+  padding: 13px 15px;
+  border: none;
+  background: white;
+  text-align: left;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.dropdown-menu button:hover {
+  background: #f2f2f2;
+}
+
+/* ============================= */
+/* DARK MODE */
+/* ============================= */
+
+.app.dark-mode {
+  background: #111b21;
+  color: #e9edef;
+}
+
+.app.dark-mode .chat-app {
+  background: #111b21;
+  color: #e9edef;
+}
+
+/* LEFT USERS PANEL */
+
+.app.dark-mode .users {
+  background: #111b21;
+  color: #e9edef;
+  border-color: #2a3942;
+}
+
+/* CHAT AREA */
+
+.app.dark-mode .chat {
+  background: #0b141a;
+  color: #e9edef;
+}
+
+/* HEADER */
+
+.app.dark-mode .chat-header,
+.app.dark-mode .users-header {
+  background: #202c33;
+  color: #e9edef;
+  border-color: #2a3942;
+}
+
+/* USER ITEMS */
+
+.app.dark-mode .user {
+  background: #111b21;
+  color: #e9edef;
+  border-color: #2a3942;
+}
+
+.app.dark-mode .user:hover {
+  background: #202c33;
+}
+
+.app.dark-mode .user.selected {
+  background: #2a3942;
+}
+
+/* MENU BUTTON */
+
+.app.dark-mode .menu-button {
+  color: #e9edef;
+}
+
+/* DROPDOWN */
+
+.app.dark-mode .dropdown-menu {
+  background: #233138;
+  border-color: #3b4a52;
+}
+
+.app.dark-mode .dropdown-menu button {
+  background: #233138;
+  color: #e9edef;
+}
+
+.app.dark-mode .dropdown-menu button:hover {
+  background: #2f3f46;
+}
+
+/* MESSAGE AREA */
+
+.app.dark-mode .messages {
+  background: #0b141a;
+}
+
+/* OTHER MESSAGE */
+
+.app.dark-mode .message.other {
+  background: #202c33;
+  color: #e9edef;
+  border-color: #2a3942;
+}
+
+/* MY MESSAGE */
+
+.app.dark-mode .message.me {
+  background: #005c4b;
+  color: #e9edef;
+}
+
+/* MESSAGE INPUT AREA */
+
+.app.dark-mode .message-box {
+  background: #202c33;
+  border-color: #2a3942;
+}
+
+.app.dark-mode .message-box input {
+  background: #2a3942;
+  color: #e9edef;
+  border-color: #3b4a52;
+}
+
+.app.dark-mode .message-box input::placeholder {
+  color: #8696a0;
+}
+
+/* SEND BUTTON */
+
+.app.dark-mode .message-box button {
+  background: #00a884;
+  color: white;
+}
+
+/* NO CHAT */
+
+.app.dark-mode .no-chat {
+  color: #8696a0;
+}
+
+/* BACK BUTTON */
+
+.app.dark-mode .back-button {
+  color: #e9edef;
+}
+
+.profile-photo-button {
+  display: block;
+  width: 100%;
+  padding: 13px 15px;
+  cursor: pointer;
+  font-size: 15px;
+}
+
+.profile-photo-button:hover {
+  background: #f2f2f2;
+}
+
+.app.dark-mode .profile-photo-button {
+  color: #e9edef;
+}
+
+.app.dark-mode .profile-photo-button:hover {
+  background: #2f3f46;
+}
+.user-avatar {
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #ddd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 22px;
+}
+
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-info {
+  flex: 1;
 }
