@@ -16,6 +16,9 @@ from fastapi import FastAPI
 from datetime import datetime, timedelta, timezone
 from jose import jwt
 import os
+import smtplib
+import random
+from email.message import EmailMessage
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
@@ -79,6 +82,44 @@ def create_access_token(user_id: int):
         JWT_SECRET_KEY,
         algorithm=JWT_ALGORITHM
     )
+def send_otp_email(email: str, otp: str):
+
+    msg = EmailMessage()
+
+    msg["Subject"] = "Private Chat - Email Verification OTP"
+    msg["From"] = os.getenv("EMAIL_USERNAME")
+    msg["To"] = email
+
+    msg.set_content(
+        f"""
+Hello,
+
+Your Private Chat verification OTP is:
+
+{otp}
+
+This OTP is valid for 10 minutes.
+
+If you did not request this, please ignore this email.
+"""
+    )
+
+    with smtplib.SMTP(
+        os.getenv("EMAIL_HOST"),
+        int(os.getenv("EMAIL_PORT"))
+    ) as server:
+
+        server.starttls()
+
+        server.login(
+            os.getenv("EMAIL_USERNAME"),
+            os.getenv("EMAIL_PASSWORD")
+        )
+
+        server.send_message(msg)
+
+def generate_otp():
+    return str(random.randint(100000, 999999))
 
 def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -315,24 +356,89 @@ def register(
             status_code=400,
             detail="Email already exists"
         )
+    otp = generate_otp()
+
+    otp_expiry = datetime.now(timezone.utc) + timedelta(minutes=10)
 
     hashed_password = hash_password(password)
 
+
+
     new_user = models.User(
-        username=username,
-        email=email,
-        password=hashed_password
-    )
+    username=username,
+    email=email,
+    password=hashed_password,
+    is_verified=False,
+    verification_otp=otp,
+    otp_expiry=otp_expiry
+)
 
     db.add(new_user)
     db.commit()
+    send_otp_email(email, otp)
     db.refresh(new_user)
 
     return {
-        "message": "registration successful",
-        "user_id": new_user.id,
-        "username": new_user.username,
-        "email": new_user.email
+    "message": "OTP sent to your email",
+    "email": email
+    }
+
+@app.post("/verify-email")
+def verify_email(
+    email: str,
+    otp: str,
+    db: Session = Depends(get_db)
+):
+
+    user = (
+        db.query(models.User)
+        .filter(models.User.email == email)
+        .first()
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+
+    if user.is_verified:
+        return {
+            "message": "Email already verified"
+        }
+
+    if not user.verification_otp:
+        raise HTTPException(
+            status_code=400,
+            detail="No OTP found"
+        )
+
+    if user.otp_expiry is None:
+        raise HTTPException(
+            status_code=400,
+            detail="OTP expired"
+        )
+
+    if datetime.now(timezone.utc).replace(tzinfo=None) > user.otp_expiry:
+        raise HTTPException(
+            status_code=400,
+            detail="OTP expired"
+        )
+
+    if otp != user.verification_otp:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid OTP"
+        )
+
+    user.is_verified = True
+    user.verification_otp = None
+    user.otp_expiry = None
+
+    db.commit()
+
+    return {
+        "message": "Email verified successfully"
     }
 
 @app.post("/login")
@@ -354,6 +460,11 @@ def login(
         raise HTTPException(
             status_code=401,
             detail="Invalid email or password"
+        )
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=403,
+            detail="Please verify your email first"
         )
 
     if not verify_password(
