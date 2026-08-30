@@ -21,6 +21,10 @@ function App() {
   const [userId, setUserId] = useState("");
   const [connected, setConnected] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [showMenu, setShowMenu] = useState(false);
+  const [darkMode, setDarkMode] = useState(
+    localStorage.getItem("darkMode") === "true",
+  );
 
   // ==============================
   // CHAT STATE
@@ -35,6 +39,10 @@ function App() {
 
   const websocket = useRef(null);
   const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    localStorage.setItem("darkMode", darkMode);
+  }, [darkMode]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
@@ -631,20 +639,42 @@ function App() {
   // ==============================
 
   return (
-    <div className="app">
+    <div className={`app ${darkMode ? "dark-mode" : ""}`}>
       <div className={`chat-app ${receiverId ? "chat-open" : "users-open"}`}>
         {/* LEFT SIDE */}
 
         <div className="users">
           <h2>Private Chat</h2>
 
-          <p className="my-user">
-            {username} (User {userId})
-          </p>
+          <p className="my-user">{username}</p>
 
-          <button className="logout-button" onClick={logout}>
-            Logout
-          </button>
+          <div className="menu-container">
+            <button
+              className="menu-button"
+              onClick={() => setShowMenu(!showMenu)}>
+              ⋮
+            </button>
+
+            {showMenu && (
+              <div className="menu-dropdown">
+                <button
+                  onClick={() => {
+                    setDarkMode(!darkMode);
+                    setShowMenu(false);
+                  }}>
+                  {darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowMenu(false);
+                    logout();
+                  }}>
+                  🚪 Logout
+                </button>
+              </div>
+            )}
+          </div>
 
           {users.map((user) => (
             <div
@@ -654,7 +684,7 @@ function App() {
               }`}
               onClick={() => selectUser(user.id)}>
               <div>
-                {user.username} (User {user.id}){" "}
+                {user.username}
                 {unreadCounts[String(user.id)] > 0 && (
                   <span className="unread-badge">
                     {unreadCounts[String(user.id)]}

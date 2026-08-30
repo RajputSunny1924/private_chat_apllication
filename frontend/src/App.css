@@ -361,3 +361,72 @@ body {
   font-size: 12px;
   font-weight: bold;
 }
+
+.menu-container {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+.menu-button {
+  border: none;
+  background: transparent;
+  font-size: 28px;
+  cursor: pointer;
+  padding: 4px 10px;
+}
+
+.menu-dropdown {
+  position: absolute;
+  top: 42px;
+  right: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  min-width: 150px;
+  padding: 6px;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.menu-dropdown button {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 10px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.menu-dropdown button:hover {
+  background: #f2f2f2;
+}
+.dark-mode {
+  background: #121212;
+  color: #ffffff;
+}
+
+.dark-mode .users,
+.dark-mode .chat {
+  background: #181818;
+  color: #ffffff;
+}
+
+.dark-mode .menu-button {
+  color: #ffffff;
+}
+
+.dark-mode .menu-dropdown {
+  background: #242424;
+  border-color: #444;
+}
+
+.dark-mode .menu-dropdown button {
+  color: #ffffff;
+}
+
+.dark-mode .menu-dropdown button:hover {
+  background: #333;
+}
