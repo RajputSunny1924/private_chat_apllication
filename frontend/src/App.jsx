@@ -4,58 +4,69 @@ import "./App.css";
 const API_URL = "https://private-chat-apllication-1.onrender.com";
 
 function App() {
-  // ==============================
-  // AUTH STATE
-  // ==============================
-
+  // Auth
   const [showRegister, setShowRegister] = useState(false);
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [username, setUsername] = useState("");
-
   const [loginError, setLoginError] = useState("");
   const [registerError, setRegisterError] = useState("");
-
   const [userId, setUserId] = useState("");
   const [connected, setConnected] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
-
   const [darkMode, setDarkMode] = useState(
     localStorage.getItem("darkMode") === "true",
   );
   const [profilePhoto, setProfilePhoto] = useState(null);
+  const [selectedMedia, setSelectedMedia] = useState(null);
 
-  // ==============================
-  // CHAT STATE
-  // ==============================
-
+  // Chat
   const [receiverId, setReceiverId] = useState("");
-  const receiverIdRef = useRef("");
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [users, setUsers] = useState([]);
   const [unreadCounts, setUnreadCounts] = useState({});
 
+  const receiverIdRef = useRef("");
   const websocket = useRef(null);
   const messagesEndRef = useRef(null);
 
+  // Save dark mode preference
   useEffect(() => {
     localStorage.setItem("darkMode", darkMode);
   }, [darkMode]);
 
+  // Scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
     });
   }, [messages]);
 
-  // ==============================
-  // LOGIN
-  // ==============================
+  // Select media file
+  const handleMediaSelect = (event) => {
+    const file = event.target.files[0];
 
+    if (!file) return;
+
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "video/mp4",
+      "video/webm",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      alert("Only images and videos are allowed");
+      return;
+    }
+
+    setSelectedMedia(file);
+  };
+
+  // Login
   const login = async () => {
     setLoginError("");
 
@@ -66,68 +77,50 @@ function App() {
 
     try {
       const formData = new URLSearchParams();
-
       formData.append("username", email);
       formData.append("password", password);
 
       const response = await fetch(`${API_URL}/login`, {
         method: "POST",
-
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
         },
-
         body: formData,
       });
 
       const data = await response.json();
-
-      console.log("LOGIN RESPONSE:", data);
 
       if (!response.ok) {
         setLoginError(data.detail || "Login failed");
         return;
       }
 
-      console.log("LOGIN RESPONSE OK");
-
       localStorage.setItem("access_token", data.access_token);
 
       setUserId(String(data.user_id));
-
       setUsername(data.username);
-
-      console.log("BEFORE CONNECTED");
-
       setConnected(true);
-
-      console.log("AFTER CONNECTED");
     } catch (error) {
-      console.error("LOGIN ERROR:", error);
-
+      console.error("Login error:", error);
       setLoginError("Login error: " + error.message);
     }
   };
 
-  // ==============================
-  // REGISTER
-  // ==============================
-
+  // Register
   const register = async () => {
     setRegisterError("");
 
     if (!username || !email || !password) {
       setRegisterError("Please fill all fields");
-
       return;
     }
 
     try {
-      const params = new URLSearchParams();
-
-      params.append("username", username);
-      params.append("email", email);
-      params.append("password", password);
+      const params = new URLSearchParams({
+        username,
+        email,
+        password,
+      });
 
       const response = await fetch(`${API_URL}/register?${params.toString()}`, {
         method: "POST",
@@ -137,26 +130,20 @@ function App() {
 
       if (!response.ok) {
         setRegisterError(data.detail || "Registration failed");
-
         return;
       }
 
       alert("Registration successful! Now login.");
 
-      // Go back to login
       setShowRegister(false);
-
       setPassword("");
     } catch (error) {
-      console.error(error);
-
+      console.error("Registration error:", error);
       setRegisterError("Cannot connect to server");
     }
   };
 
-  // ==============================
-  // RESTORE LOGIN SESSION
-  // ==============================
+  // Restore previous login session
   useEffect(() => {
     const restoreSession = async () => {
       const token = localStorage.getItem("access_token");
@@ -186,7 +173,7 @@ function App() {
         setEmail(data.email);
         setConnected(true);
       } catch (error) {
-        console.log("Could not restore login", error);
+        console.log("Could not restore login:", error);
       } finally {
         setCheckingAuth(false);
       }
@@ -194,36 +181,30 @@ function App() {
 
     restoreSession();
   }, []);
-  // ==============================
-  // WEBSOCKET CONNECTION
-  // ==============================
+
+  // Load users after login
   useEffect(() => {
-    if (!connected) {
-      return;
-    }
+    if (!connected) return;
 
     const loadUsers = async () => {
       try {
         const response = await fetch(`${API_URL}/users`);
 
-        if (!response.ok) {
-          return;
-        }
+        if (!response.ok) return;
 
         const data = await response.json();
-
         setUsers(data);
       } catch (error) {
-        console.log("Could not load users", error);
+        console.log("Could not load users:", error);
       }
     };
 
     loadUsers();
   }, [connected]);
+
+  // WebSocket connection
   useEffect(() => {
-    if (!connected || !userId) {
-      return;
-    }
+    if (!connected || !userId) return;
 
     const ws = new WebSocket(
       `wss://private-chat-apllication-1.onrender.com/ws/${userId}`,
@@ -232,48 +213,49 @@ function App() {
     websocket.current = ws;
 
     ws.onopen = () => {
-      console.log("WebSocket connected as User", userId);
+      console.log("WebSocket connected");
     };
 
-    // ==============================
-    // RECEIVE MESSAGE
-    // ==============================
-
-    ws.onmessage = (event) => {
+    ws.onmessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
 
-        console.log("Server:", data);
-
+        // User online/offline status changed
         if (data.type === "presence") {
-          const refreshUsers = async () => {
-            try {
-              const response = await fetch(`${API_URL}/users`);
+          try {
+            const response = await fetch(`${API_URL}/users`);
 
-              if (!response.ok) {
-                return;
-              }
-
-              const data = await response.json();
-
-              setUsers(data);
-            } catch (error) {
-              console.log("Could not refresh users", error);
+            if (response.ok) {
+              const users = await response.json();
+              setUsers(users);
             }
-          };
-
-          refreshUsers();
+          } catch (error) {
+            console.log("Could not refresh users:", error);
+          }
 
           return;
         }
 
+        // Message status update
         if (data.type === "status") {
           setMessages((oldMessages) => {
             const messageExists = oldMessages.some(
               (msg) => String(msg.id) === String(data.message_id),
             );
 
-            // Message abhi list me nahi hai
+            if (data.status === "viewed") {
+              return oldMessages.map((msg) =>
+                String(msg.id) === String(data.message_id)
+                  ? {
+                      ...msg,
+                      status: "viewed",
+                      viewed: true,
+                      isViewOnce: false,
+                    }
+                  : msg,
+              );
+            }
+
             if (!messageExists && data.status === "sent") {
               return [
                 ...oldMessages,
@@ -281,13 +263,16 @@ function App() {
                   id: data.message_id,
                   text: data.message,
                   sender: "me",
-                  userId: userId,
+                  userId,
                   status: "sent",
+                  messageType: data.message_type || "text",
+                  mediaType: data.media_type || null,
+                  mediaUrl: data.media_url || null,
+                  isViewOnce: data.is_view_once || false,
                 },
               ];
             }
 
-            // Existing message ka status update karo
             return oldMessages.map((msg) =>
               String(msg.id) === String(data.message_id)
                 ? {
@@ -301,21 +286,12 @@ function App() {
           return;
         }
 
-        // ==========================================
-        // RECEIVED MESSAGE
-        // ==========================================
-
+        // New received message
         if (data.type === "message") {
-          console.log("MESSAGE RECEIVED");
-          console.log("Sender ID:", data.sender_id);
-          console.log("Current Receiver ID:", receiverIdRef.current);
           const senderId = String(data.sender_id);
+          const currentReceiverId = String(receiverIdRef.current);
 
-          // ==============================
-          // UNREAD MESSAGE
-          // ==============================
-
-          if (senderId !== String(receiverIdRef.current)) {
+          if (senderId !== currentReceiverId) {
             setUnreadCounts((oldCounts) => ({
               ...oldCounts,
               [senderId]: (oldCounts[senderId] || 0) + 1,
@@ -323,30 +299,22 @@ function App() {
 
             const sender = users.find((user) => String(user.id) === senderId);
 
-            const senderName = sender ? sender.username : `User ${senderId}`;
-
             if (
               "Notification" in window &&
               Notification.permission === "granted"
             ) {
-              new Notification(senderName, {
-                body: data.message,
+              new Notification(sender ? sender.username : `User ${senderId}`, {
+                body: data.message || "New media message",
               });
             }
           }
 
           setMessages((oldMessages) => {
-            // Duplicate message already exists?
             const exists = oldMessages.some(
               (msg) => String(msg.id) === String(data.message_id),
             );
 
-            if (exists) {
-              return oldMessages;
-            }
-
-            // Only show message in currently opened chat
-            if (senderId !== String(receiverIdRef.current)) {
+            if (exists || senderId !== String(receiverIdRef.current)) {
               return oldMessages;
             }
 
@@ -358,16 +326,18 @@ function App() {
                 sender: "other",
                 userId: data.sender_id,
                 status: data.status || "delivered",
+                messageType: data.message_type || "text",
+                mediaType: data.media_type || null,
+                mediaUrl: data.media_url || null,
+                isViewOnce: data.is_view_once || false,
               },
             ];
           });
 
-          // If this user's chat is currently open,
-          // immediately mark the message as seen.
+          // Mark message as seen when its chat is open
           if (
             senderId === String(receiverIdRef.current) &&
-            websocket.current &&
-            websocket.current.readyState === WebSocket.OPEN
+            websocket.current?.readyState === WebSocket.OPEN
           ) {
             websocket.current.send(
               JSON.stringify({
@@ -380,15 +350,11 @@ function App() {
           return;
         }
 
-        // ==========================================
-        // ERROR
-        // ==========================================
-
         if (data.status === "error") {
           alert(data.message || "Message could not be sent");
         }
       } catch (error) {
-        console.log("Invalid server response", error);
+        console.log("Invalid server response:", error);
       }
     };
 
@@ -405,14 +371,9 @@ function App() {
     };
   }, [connected, userId]);
 
-  // ==============================
-  // SELECT USER
-  // ==============================
-
+  // Select a user and load chat history
   const selectUser = async (id) => {
-    if (String(id) === String(userId)) {
-      return;
-    }
+    if (String(id) === String(userId)) return;
 
     setReceiverId(String(id));
     receiverIdRef.current = String(id);
@@ -424,29 +385,27 @@ function App() {
 
     setMessages([]);
 
-    // Load previous chat messages
     try {
       const response = await fetch(`${API_URL}/messages/${userId}/${id}`);
 
-      if (!response.ok) {
-        return;
-      }
+      if (!response.ok) return;
 
       const data = await response.json();
 
       const formattedMessages = data.map((msg) => ({
         id: msg.id,
-
         text: msg.message,
-
         sender: String(msg.sender_id) === String(userId) ? "me" : "other",
-
         userId: msg.sender_id,
-
         status: msg.status || "sent",
+        messageType: msg.message_type || "text",
+        mediaType: msg.media_type || null,
+        mediaUrl: msg.media_url || null,
+        isViewOnce: msg.is_view_once || false,
       }));
 
       setMessages(formattedMessages);
+
       const unseenMessageIds = data
         .filter(
           (msg) =>
@@ -457,9 +416,8 @@ function App() {
         .map((msg) => msg.id);
 
       if (
-        unseenMessageIds.length > 0 &&
-        websocket.current &&
-        websocket.current.readyState === WebSocket.OPEN
+        unseenMessageIds.length &&
+        websocket.current?.readyState === WebSocket.OPEN
       ) {
         websocket.current.send(
           JSON.stringify({
@@ -469,44 +427,75 @@ function App() {
         );
       }
     } catch (error) {
-      console.log("Could not load chat history", error);
+      console.log("Could not load chat history:", error);
     }
   };
 
-  // ==============================
-  // SEND MESSAGE
-  // ==============================
-
-  const sendMessage = () => {
+  // Send text or media message
+  const sendMessage = async () => {
     if (!receiverId) {
       alert("Please select a user");
       return;
     }
 
-    if (!message.trim()) {
-      return;
-    }
+    if (!message.trim() && !selectedMedia) return;
 
-    if (!websocket.current || websocket.current.readyState !== WebSocket.OPEN) {
+    if (websocket.current?.readyState !== WebSocket.OPEN) {
       alert("Not connected to chat server");
       return;
     }
 
-    const messageText = message.trim();
+    // Send View Once media
+    if (selectedMedia) {
+      try {
+        const formData = new FormData();
+        formData.append("file", selectedMedia);
 
+        const token = localStorage.getItem("access_token");
+
+        const response = await fetch(`${API_URL}/upload-media`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          alert(data.detail || "Media upload failed");
+          return;
+        }
+
+        websocket.current.send(
+          JSON.stringify({
+            type: "media",
+            receiver_id: Number(receiverId),
+            media_type: data.media_type.startsWith("image") ? "image" : "video",
+            media_url: data.media_url,
+          }),
+        );
+
+        setSelectedMedia(null);
+        return;
+      } catch (error) {
+        console.error("Media upload error:", error);
+        alert("Cannot upload media");
+        return;
+      }
+    }
+
+    // Send text message
     websocket.current.send(
       JSON.stringify({
         receiver_id: Number(receiverId),
-        message: messageText,
+        message: message.trim(),
       }),
     );
 
     setMessage("");
   };
-
-  // ==============================
-  // ENTER KEY
-  // ==============================
 
   const handleKeyDown = (event) => {
     if (event.key === "Enter") {
@@ -514,15 +503,14 @@ function App() {
     }
   };
 
+  // Ask for notification permission
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
   }, []);
-  // ==============================
-  // LOGOUT
-  // ==============================
 
+  // Update profile photo
   const handleProfilePhoto = async (event) => {
     const file = event.target.files[0];
 
@@ -548,20 +536,21 @@ function App() {
         alert(data.detail || "Profile photo upload failed");
         return;
       }
-      setProfilePhoto(data.profile_photo);
 
+      setProfilePhoto(data.profile_photo);
       alert("Profile photo updated successfully!");
     } catch (error) {
-      console.error(error);
+      console.error("Profile photo error:", error);
       alert("Cannot connect to server");
     }
   };
 
+  // Logout
   const logout = () => {
-    if (websocket.current) {
-      websocket.current.close();
-    }
+    websocket.current?.close();
+
     localStorage.removeItem("access_token");
+
     setConnected(false);
     setUserId("");
     setUsername("");
@@ -570,11 +559,9 @@ function App() {
     setReceiverId("");
     setMessages([]);
   };
-
   // ==============================
   // LOGIN SCREEN
   // ==============================
-
   if (checkingAuth) {
     return <div className="app">Loading...</div>;
   }
@@ -612,7 +599,6 @@ function App() {
                 <span
                   onClick={() => {
                     setShowRegister(true);
-
                     setLoginError("");
                   }}>
                   Register
@@ -620,10 +606,6 @@ function App() {
               </p>
             </>
           ) : (
-            /* ========================= */
-            /* REGISTER */
-            /* ========================= */
-
             <>
               <h2>Register</h2>
 
@@ -657,7 +639,6 @@ function App() {
                 <span
                   onClick={() => {
                     setShowRegister(false);
-
                     setRegisterError("");
                   }}>
                   Login
@@ -670,15 +651,9 @@ function App() {
     );
   }
 
-  // ==============================
-  // CHAT UI
-  // ==============================
-
   return (
     <div className={`app ${darkMode ? "dark-mode" : ""}`}>
       <div className={`chat-app ${receiverId ? "chat-open" : "users-open"}`}>
-        {/* LEFT SIDE */}
-
         <div className="users">
           <div className="users-header">
             <h1>Private Chat</h1>
@@ -729,6 +704,7 @@ function App() {
 
               <div>
                 {user.username}
+
                 {unreadCounts[String(user.id)] > 0 && (
                   <span className="unread-badge">
                     {unreadCounts[String(user.id)]}
@@ -743,13 +719,10 @@ function App() {
           ))}
         </div>
 
-        {/* RIGHT SIDE */}
-
         <div className="chat">
           {!receiverId ? (
             <div className="no-chat">
               <h2>Select a user</h2>
-
               <p>Choose a user from the left side.</p>
             </div>
           ) : (
@@ -768,9 +741,75 @@ function App() {
               </div>
 
               <div className="messages">
-                {messages.map((msg, index) => (
-                  <div key={index} className={`message ${msg.sender}`}>
-                    {msg.text}
+                {messages.map((msg) => (
+                  <div key={msg.id} className={`message ${msg.sender}`}>
+                    {msg.messageType === "media" ? (
+                      <div
+                        className="view-once-media"
+                        style={{ cursor: "pointer" }}
+                        onClick={async () => {
+                          if (msg.viewed) return;
+
+                          try {
+                            const token = localStorage.getItem("access_token");
+
+                            const response = await fetch(
+                              `${API_URL}${msg.mediaUrl}`,
+                              {
+                                headers: {
+                                  Authorization: `Bearer ${token}`,
+                                },
+                              },
+                            );
+
+                            if (!response.ok) {
+                              alert(
+                                "This media has already been viewed or expired.",
+                              );
+                              return;
+                            }
+
+                            const blob = await response.blob();
+                            const url = URL.createObjectURL(blob);
+
+                            window.open(url, "_blank");
+
+                            if (
+                              websocket.current?.readyState === WebSocket.OPEN
+                            ) {
+                              websocket.current.send(
+                                JSON.stringify({
+                                  type: "viewed",
+                                  message_id: msg.id,
+                                }),
+                              );
+                            }
+
+                            setMessages((oldMessages) =>
+                              oldMessages.map((m) =>
+                                m.id === msg.id
+                                  ? {
+                                      ...m,
+                                      isViewOnce: false,
+                                      viewed: true,
+                                    }
+                                  : m,
+                              ),
+                            );
+                          } catch (error) {
+                            console.error(error);
+                            alert("Could not open media");
+                          }
+                        }}>
+                        {msg.mediaType === "image" ? (
+                          <div>📷 View Once Photo</div>
+                        ) : (
+                          <div>🎥 View Once Video</div>
+                        )}
+                      </div>
+                    ) : (
+                      msg.text
+                    )}
 
                     {msg.sender === "me" && (
                       <span
@@ -778,6 +817,7 @@ function App() {
                         {msg.status === "sent" && "✓"}
                         {msg.status === "delivered" && "✓✓"}
                         {msg.status === "seen" && "✓✓"}
+                        {msg.status === "viewed" && "✓ Viewed"}
                       </span>
                     )}
                   </div>
@@ -786,7 +826,25 @@ function App() {
                 <div ref={messagesEndRef} />
               </div>
 
+              {selectedMedia && (
+                <div className="media-preview">
+                  <span>📎 {selectedMedia.name}</span>
+
+                  <button onClick={() => setSelectedMedia(null)}>❌</button>
+                </div>
+              )}
+
               <div className="message-box">
+                <label className="media-button">
+                  📎
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
+                    onChange={handleMediaSelect}
+                    hidden
+                  />
+                </label>
+
                 <input
                   type="text"
                   placeholder="Type a message..."

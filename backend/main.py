@@ -10,15 +10,21 @@ from fastapi.security import (
     OAuth2PasswordBearer,
     OAuth2PasswordRequestForm
 )
+from fastapi import UploadFile, File, HTTPException
 from pathlib import Path
+import uuid
+import shutil
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from datetime import datetime, timedelta, timezone
 from jose import jwt
+from fastapi.staticfiles import StaticFiles
 import os
 import smtplib
 import random
 import uuid
+from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 from fastapi import UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from email.message import EmailMessage
@@ -31,6 +37,8 @@ JWT_ALGORITHM = os.getenv("JWT_ALGORITHM")
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES"))
 
 app = FastAPI()
+
+
 
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.add_middleware(
@@ -539,3 +547,60 @@ async def upload_profile_photo(
         "message": "Profile photo updated",
         "profile_photo": current_user.profile_photo
     }
+TEMP_MEDIA_DIR = Path("backend/temp_media")
+TEMP_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@app.post("/upload-media")
+async def upload_media(file: UploadFile = File(...)):
+
+    allowed_types = [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "video/mp4",
+        "video/webm"
+    ]
+
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail="Only image and video files are allowed"
+        )
+
+    extension = Path(file.filename).suffix
+    filename = f"{uuid.uuid4()}{extension}"
+
+    file_path = TEMP_MEDIA_DIR / filename
+
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    return {
+        "filename": filename,
+        "media_type": file.content_type,
+        "media_url": f"/view-once-media/{filename}"
+    }
+
+@app.get("/view-once-media/{filename}")
+async def view_once_media(filename: str):
+
+    file_path = Path("backend/temp_media") / filename
+
+    if not file_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Media not found or already viewed"
+        )
+
+    return FileResponse(
+        file_path,
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+        background=BackgroundTask(
+            lambda: file_path.unlink(missing_ok=True)
+        )
+    )
