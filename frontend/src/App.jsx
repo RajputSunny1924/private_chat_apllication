@@ -44,6 +44,38 @@ function App() {
     });
   }, [messages]);
 
+  useEffect(() => {
+    if (!showMenu) return;
+
+    const closeMenu = () => {
+      setShowMenu(false);
+    };
+
+    document.addEventListener("click", closeMenu);
+
+    return () => {
+      document.removeEventListener("click", closeMenu);
+    };
+  }, [showMenu]);
+
+  useEffect(() => {
+    if (!receiverId) return;
+
+    window.history.pushState({ chat: true }, "");
+
+    const handleBack = () => {
+      setReceiverId("");
+      receiverIdRef.current = "";
+      setMessages([]);
+    };
+
+    window.addEventListener("popstate", handleBack);
+
+    return () => {
+      window.removeEventListener("popstate", handleBack);
+    };
+  }, [receiverId]);
+
   // Select media file
   const handleMediaSelect = (event) => {
     const file = event.target.files[0];
@@ -661,12 +693,17 @@ function App() {
             <div className="menu-container">
               <button
                 className="menu-button"
-                onClick={() => setShowMenu(!showMenu)}>
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMenu(!showMenu);
+                }}>
                 ⋮
               </button>
 
               {showMenu && (
-                <div className="dropdown-menu">
+                <div
+                  className="dropdown-menu"
+                  onClick={(e) => e.stopPropagation()}>
                   <label className="profile-photo-button">
                     🖼️ Profile Photo
                     <input
